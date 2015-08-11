@@ -1,14 +1,24 @@
-import urllib2, re, os
+import urllib2, re, os, sys
 
+
+applicantName = "Armin Schaare und Kai Korpi"
 
 contactedFile = "contacted.txt"
 """str: Name of the file containing the IDs of all contacted flats"""
+contacted = {}
+
+
 applicationFile = "application.txt"
 """str: Name of the file containing the application"""
+application = ""
+
 blacklistFile = "blacklist.txt"
 """str: Name of the file containing all regex prohibiting contact in case of a match"""
+blacklist = {}
+
 whitelistFile = "whitelist.txt"
 """str: Name of the file containing all regex encouraging cantact in case of a match"""
+whitelist = {}
 
 class FlatOffer(object):
 	"""Class representing a scanned flat offer with all its information
@@ -23,7 +33,7 @@ class FlatOffer(object):
 		company (str): The offering company (can be n/a).
 		contactName (str): The name of the contact person to use for an application (can be n/a).
 		coldRent (str): Cold Rent per month.
-		livingSpace (str): Size of the flat (in m²)
+		livingSpace (str): Size of the flat (in m^2)
 		roomCount (str): Number of rooms
 
 	"""
@@ -41,7 +51,7 @@ class FlatOffer(object):
 			company (str): The offering company (can be n/a).
 			contactName (str): The name of the contact person to use for an application (can be n/a).
 			coldRent (str): Cold Rent per month.
-			livingSpace (str): Size of the flat (in m²)
+			livingSpace (str): Size of the flat (in m^2)
 			roomCount (str): Number of rooms
 
 		"""
@@ -71,7 +81,7 @@ class FlatOffer(object):
 		"""Saves the ID to the specified file
 		"""
 
-		f = open(FlatOffer.contacted, "a")
+		f = open(contactedFile, "a")
 		f.write(self.iden + "\n")
 		f.close
 
@@ -128,13 +138,13 @@ def loadApplication():
 	Note:
 		Content of the 'applicationFile' can have following Variables:
 			$(applicant) : The applicant (usually your name)
-			$(contact) : The person to contact (will be filled by script)
+			$(greeting) : The greeting of the contact (prompt will ask the user for it)
 
 	Returns:
 		str: The application string.
 
 	"""
-
+	l = ""
 	try:
 		with open(applicationFile, "r") as f:
 			l = f.read()
@@ -142,8 +152,12 @@ def loadApplication():
 		print "Application file error:", e
 		sys.exit(1)
 
+	l = l.replace('$(greeting)', 'Sehr geehrter Herr Arsch')
+	l = l.replace('$(applicant)', applicantName)
 
-	return set(l)
+	return l
+
+
 def loadBlacklist():
 	"""Loads the 'blacklistFile'
 
@@ -226,7 +240,7 @@ def findFlatsImmoscout24(maxColdRent, minRoomCount):
 	
 	"""
 
-	print "\nScanning Webpage http://www.immobilienscout24.de/ with a maximum rent of " + str(maxColdRent) + ",00€ and a minimum room count of " + str(minRoomCount) + "."
+	print "\nScanning Webpage http://www.immobilienscout24.de/ with a maximum rent of " + str(maxColdRent) + ",00EURO and a minimum room count of " + str(minRoomCount) + "."
 
 	s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/Wohnung-Miete/Hamburg/Hamburg/-/' + str(minRoomCount) + ',00-/-/EURO--' + str(maxColdRent) + ',00?pagerReporting=true').read()
 
@@ -234,11 +248,11 @@ def findFlatsImmoscout24(maxColdRent, minRoomCount):
 
 	n = int(search('numberOfHits: (.*?),', s)) / 20
 
-	for a in range(n):
+	for a in range(1):
 		
 		print('\nScanning page ' + str(a + 1) + '...')
 
-		s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/P-' + str(a + 1) + '/Wohnung-Miete/Hamburg/Hamburg/-/' + str(minRoomCount) + ',00-/-/EURO--' + str(maxColdRent) + '00?enteredFrom=one_step_search').read()
+		s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/P-' + str(a + 1) + '/Wohnung-Miete/Hamburg/Hamburg/-/' + str(minRoomCount) + ',00-/-/EURO--' + str(maxColdRent) + ',00?enteredFrom=one_step_search').read()
 
 		m = re.finditer('\{\"id\":.*?\"similarResults\":\[.*?\]\}', s)
 
@@ -248,7 +262,7 @@ def findFlatsImmoscout24(maxColdRent, minRoomCount):
 
 			iden = search('\"id\":(.*?),', s)
 
-			if iden not in contIDs:
+			if iden not in contacted:
 
 				title = search('\"title\":\"(.*?)\"', s)
 				address = search('\"address\":\"(.*?)\"', s)
@@ -265,20 +279,25 @@ def findFlatsImmoscout24(maxColdRent, minRoomCount):
 				flats.append(flat)
 				print(flat.toString())
 
+	return flats
 
 def main():
 	"""Main method to commence a flat search
 	"""
 
-	os.remove(contacted)
+	os.remove(contactedFile)
 
 	contacted = loadContacted()
 	application = loadApplication()
 	blacklist = loadBlacklist()
 	whitelist = loadWhitelist()
 
-	
+	print(application)
 
+	flats = findFlatsImmoscout24(500, 2)	
+
+	for f in flats:
+		f.contact()
 
 if __name__ == "__main__":
 
