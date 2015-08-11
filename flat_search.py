@@ -3,16 +3,12 @@ import urllib2, re, os
 
 contactedFile = "contacted.txt"
 """str: Name of the file containing the IDs of all contacted flats"""
-
 applicationFile = "application.txt"
 """str: Name of the file containing the application"""
-
 blacklistFile = "blacklist.txt"
 """str: Name of the file containing all regex prohibiting contact in case of a match"""
-
 whitelistFile = "whitelist.txt"
 """str: Name of the file containing all regex encouraging cantact in case of a match"""
-
 
 class FlatOffer(object):
 	"""Class representing a scanned flat offer with all its information
@@ -90,8 +86,7 @@ class FlatOffer(object):
 
 		return "\nID:\t\t" + self.iden + "\nTitle:\t\t" + self.title + "\nAddress:\t" + self.address + "\n\t\t" + self.district + "\n\t\t" + self.zipCode + ", " + self.city + "\nCompany:\t" + self.company + "\nContact:\t" + self.contactName + "\nCold Rent:\t" + self.coldRent + "\nLiving Space:\t" + self.livingSpace + "\nRooms:\t\t" + self.roomCount
 
-
-def search(regex, string, group=0):
+def search(regex, string, group=1):
 	"""Searches the string for the regex and returns the specified group
 
 	Args:
@@ -127,7 +122,6 @@ def loadContacted():
 			l = l[:len(l)-2]
 
 	return set(l)
-
 def loadApplication():
 	"""Loads the 'applicationFile'.
 
@@ -150,7 +144,6 @@ def loadApplication():
 
 
 	return set(l)
-
 def loadBlacklist():
 	"""Loads the 'blacklistFile'
 
@@ -188,7 +181,6 @@ def loadBlacklist():
 			result[spl[0]] = set(spl[1:])
 
 	return result
-
 def loadWhitelist():
 	"""Loads the 'whitelistFile'
 
@@ -222,6 +214,58 @@ def loadWhitelist():
 
 	return result
 
+def findFlatsImmoscout24(maxColdRent, minRoomCount):
+	"""Finds all flats on the website 'http//www.immobilienscout24.de/' with the given attributes.
+
+	Args:
+		maxColdRent(int): The maximum rent of the flat in Euro.
+		minRoomCount(int): The minimum number of rooms of the flat.
+
+	Returns:
+		[FlatOffers]: The list of all search results.
+	
+	"""
+
+	print "\nScanning Webpage http://www.immobilienscout24.de/ with a maximum rent of " + str(maxColdRent) + ",00€ and a minimum room count of " + str(minRoomCount) + "."
+
+	s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/Wohnung-Miete/Hamburg/Hamburg/-/' + str(minRoomCount) + ',00-/-/EURO--' + str(maxColdRent) + ',00?pagerReporting=true').read()
+
+	flats = []
+
+	n = int(search('numberOfHits: (.*?),', s)) / 20
+
+	for a in range(n):
+		
+		print('\nScanning page ' + str(a + 1) + '...')
+
+		s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/P-' + str(a + 1) + '/Wohnung-Miete/Hamburg/Hamburg/-/' + str(minRoomCount) + ',00-/-/EURO--' + str(maxColdRent) + '00?enteredFrom=one_step_search').read()
+
+		m = re.finditer('\{\"id\":.*?\"similarResults\":\[.*?\]\}', s)
+
+		for i in m:
+
+			s = i.group(0)
+
+			iden = search('\"id\":(.*?),', s)
+
+			if iden not in contIDs:
+
+				title = search('\"title\":\"(.*?)\"', s)
+				address = search('\"address\":\"(.*?)\"', s)
+				district = search('\"district\":\"(.*?)\"', s)
+				city = search('\"city\":\"(.*?)\"', s)
+				zipCode = search('\"zip\":\"(.*?)\"', s)
+				company = search('\"realtorCompanyName\":\"(.*?)\"', s)
+				contactName = search('\"contactName\":\"(.*?)\"', s)
+				coldRent = search('\"Kaltmiete\",\"value\":\"(.*?)\"', s)
+				livingSpace = search('che\",\"value\":\"(.*?)\"', s)
+				zimmer = search('\"Zimmer\",\"value\":\"(.*?)\"', s)
+
+				flat =  FlatOffer(iden, title, address, district, zipCode, city, company, contactName, coldRent, livingSpace, zimmer)
+				flats.append(flat)
+				print(flat.toString())
+
+
 def main():
 	"""Main method to commence a flat search
 	"""
@@ -233,51 +277,12 @@ def main():
 	blacklist = loadBlacklist()
 	whitelist = loadWhitelist()
 
-	s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/Wohnung-Miete/Hamburg/Hamburg/-/2,00-/-/EURO--500,00?pagerReporting=true').read()
-
-	flats = []
-
-	n = int(re.search('numberOfHits: (.*?),', s).group(1)) / 20
-
-	for a in range(n):
-		
-		print('\nScanning page ' + str(a + 1) + '...')
-
-		s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/P-' + str(a + 1) + '/Wohnung-Miete/Hamburg/Hamburg/-/2,00-/-/EURO--500,00?enteredFrom=one_step_search').read()
-
-		m = re.finditer('\{\"id\":.*?\"similarResults\":\[.*?\]\}', s)
-
-		#m = re.finditer('\"id\":(.*?),\".*?\"title\":\"(.*?)\",\"address\":\"(.*?)\",\"district\":\"(.*?)\",\"city\":\"(.*?)\",\"zip\":\"(.*?)\".*?\"realtorCompanyName\":\"(.*?)\",\"contactName\":\"(.*?)\".*?\"value\":\"(.*?)\".*?\"value\":\"(.*?)\".*?\"value\":\"(.*?)\"', s)
-
-		for i in m:
-
-			s = i.group(0)
-
-			iden = search('\"id\":(.*?),', s)
-
-			if iden not in contIDs:
-
-				title = search('\"title\":\"(.*?)\"', s, 1)
-				address = search('\"address\":\"(.*?)\"', s, 1)
-				district = search('\"district\":\"(.*?)\"', s, 1)
-				city = search('\"city\":\"(.*?)\"', s, 1)
-				zipCode = search('\"zip\":\"(.*?)\"', s, 1)
-				company = search('\"realtorCompanyName\":\"(.*?)\"', s, 1)
-				contactName = search('\"contactName\":\"(.*?)\"', s, 1)
-				coldRent = search('\"Kaltmiete\",\"value\":\"(.*?)\"', s, 1)
-				livingSpace = search('che\",\"value\":\"(.*?)\"', s, 1)
-				zimmer = search('\"Zimmer\",\"value\":\"(.*?)\"', s, 1)
-
-				flat =  FlatOffer(iden, title, address, district, zipCode, city, company, contactName, coldRent, livingSpace, zimmer)
-				flats.append(flat)
-				print(flat.toString())
+	
 
 
 if __name__ == "__main__":
 
 	main()
-
-
 
 #http://www.immobilienscout24.de/Suche/S-T/P-1/Wohnung-Miete/Hamburg/Hamburg/-/2,00-/-/EURO--500,00?enteredFrom=one_step_search
 #http://www.immobilienscout24.de/Suche/S-T/P-2/Wohnung-Miete/Hamburg/Hamburg/-/2,00-/-/EURO--500,00?pagerReporting=true
