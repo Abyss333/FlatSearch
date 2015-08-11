@@ -1,5 +1,6 @@
 import urllib2, re, os
 
+
 contactedFile = "contacted.txt"
 """str: Name of the file containing the IDs of all contacted flats"""
 
@@ -11,6 +12,7 @@ blacklistFile = "blacklist.txt"
 
 whitelistFile = "whitelist.txt"
 """str: Name of the file containing all regex encouraging cantact in case of a match"""
+
 
 class FlatOffer(object):
 	"""Class representing a scanned flat offer with all its information
@@ -79,7 +81,7 @@ class FlatOffer(object):
 
 
 	def toString(self):
-		"""Formats all importent information of this offer into a string
+		"""Formats all important information of this offer into a string
 
 		Returns:
 			str: The formatted string.
@@ -110,7 +112,7 @@ def search(regex, string, group=0):
 	return result
 
 def loadContacted():
-	"""Loads the 'contactedFile' containing all ID of already contacted offers.
+	"""Loads the 'contactedFile'.
 
 	Returns:
 		set: All seperated lines in the file.
@@ -126,24 +128,99 @@ def loadContacted():
 
 	return set(l)
 
-
 def loadApplication():
 	"""Loads the 'applicationFile'.
 
+	Note:
+		Content of the 'applicationFile' can have following Variables:
+			$(applicant) : The applicant (usually your name)
+			$(contact) : The person to contact (will be filled by script)
+
 	Returns:
-		str: All seperated lines in the file.
+		str: The application string.
+
+	"""
+
+	try:
+		with open(applicationFile, "r") as f:
+			l = f.read()
+	except IOError as e:
+		print "Application file error:", e
+		sys.exit(1)
+
+
+	return set(l)
+
+def loadBlacklist():
+	"""Loads the 'blacklistFile'
+
+	Note:
+		Content of the 'blacklistFile' should be formatted like so:
+
+			districts dist1 dist2 dist3 ...
+			cities city1 city2 city3 ...
+			title t1 t2 t3 t4 ...
+			...
+
+		The order of those properties is not important.
+		Properties of flat offers will be matched against those specified regex and will only be
+		contacted if there was no match.
+
+		Regex present in both, whitelist and blacklist, will be ignored. Essentially having the same 
+		effect as if the regex is in neither of the files.
+
+	Returns:
+		hashtable: Hashtable with flat properties (such as 'districts', 'cities', titles', etc...) as keys an sets of regex as values
 
 	"""
 
 	l = []
+	result = {}
 
-	if os.path.isfile(contactedFile):
-		with open(contactedFile, "r") as f:
+
+	if os.path.isfile(blacklistFile):
+		with open(blacklistFile, "r") as f:
 			l = f.read().split("\n")
 			l = l[:len(l)-2]
 
-	return set(l)
+		for elem in l:
+			spl = elem.split(" ")
+			result[spl[0]] = set(spl[1:])
 
+	return result
+
+def loadWhitelist():
+	"""Loads the 'whitelistFile'
+
+	Note:
+		Content of the 'whitelistFile' should be formatted exactly like the content of 'blacklistFile'
+
+			districts dist1 dist2 dist3 ...
+			cities city1 city2 city3 ...
+			title t1 t2 t3 t4 ...
+			...
+
+		Regex present in both, whitelist and blacklist, will be ignored. Essentially having the same 
+		effect as if the regex is in neither of the files.
+
+	Returns:
+		hashtable: Hashtable with flat properties (such as 'districts', 'cities', titles', etc...) as keys an sets of regex as values
+
+	"""
+
+	l = []
+	result = {}
+
+	if os.path.isfile(blacklistFile):
+		with open(blacklistFile, "r") as f:
+			l = f.read().split("\n")
+			l = l[:len(l)-2]
+
+		for elem in l:
+			spl = elem.split(" ")
+			result[spl[0]] = set(spl[1:])
+
+	return result
 
 def main():
 	"""Main method to commence a flat search
@@ -152,8 +229,9 @@ def main():
 	os.remove(contacted)
 
 	contacted = loadContacted()
-
-
+	application = loadApplication()
+	blacklist = loadBlacklist()
+	whitelist = loadWhitelist()
 
 	s = urllib2.urlopen('http://www.immobilienscout24.de/Suche/S-T/Wohnung-Miete/Hamburg/Hamburg/-/2,00-/-/EURO--500,00?pagerReporting=true').read()
 
